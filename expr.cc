@@ -278,16 +278,28 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       expr = "TIME '01:23:45'";
   else if (type->name == "timestamp")
     if (d6() == 1)
-      expr = "(TIMESTAMP '0001-01-01 00:00:00' - INTERVAL '4714 YEARS')";
+      expr = "(TIMESTAMP '0001-01-01 00:00:00' - INTERVAL '4713 YEARS')";
     else if (d6() == 1)
       expr = "(TIMESTAMP '95143-12-31 23:59:59' + INTERVAL '167 MILLENNIUM')";
+    else if (d6() == 1)
+      expr = "(TIMESTAMP(0) '0001-01-01 00:00:00' - INTERVAL '4713 YEARS')";
+    else if (d6() == 1)
+      expr = "(TIMESTAMP(6) '0001-01-01 00:00:00' - INTERVAL '4713 YEARS')";
+    else if (d6() == 1)
+      expr = "TIMESTAMP(3) '2023-01-01 01:23:45'";
     else
       expr = "TIMESTAMP '2023-01-01 01:23:45'";
   else if (type->name == "timestamptz")
     if (d6() == 1)
-      expr = "(TIMESTAMPTZ '0001-01-01 00:00:00+06' - INTERVAL '4714 YEARS')";
+      expr = "(TIMESTAMPTZ '0001-01-01 00:00:00+06' - INTERVAL '4713 YEARS')";
     else if (d6() == 1)
       expr = "(TIMESTAMPTZ '95143-12-31 23:59:59+06' + INTERVAL '167 MILLENNIUM')";
+    else if (d6() == 1)
+      expr = "(TIMESTAMPTZ(0) '0001-01-01 00:00:00+06' - INTERVAL '4713 YEARS')";
+    else if (d6() == 1)
+      expr = "(TIMESTAMPTZ(6) '95143-12-31 23:59:59+06' + INTERVAL '167 MILLENNIUM')";
+    else if (d6() == 1)
+      expr = "TIMESTAMPTZ(3) '2023-01-01 01:23:45+06'";
     else
       expr = "TIMESTAMPTZ '2023-01-01 01:23:45+06'";
   else if (type->name == "interval")

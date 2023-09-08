@@ -21,6 +21,7 @@ grep -v "cannot return complex numbers" |
 grep -v "unrecognized privilege type" |
 grep -v "statement batch size cannot exceed" |
 grep -v "operator does not exist" | # For list types
+grep -v "does not exist" | # For roles
 # Refinement:
 grep -v "value too long for type" |
 grep -v "list_agg on char not yet supported" |
