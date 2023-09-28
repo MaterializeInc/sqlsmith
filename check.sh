@@ -105,6 +105,7 @@ grep -v "array_fill on " |
 grep -v "mz_aclitem grantor cannot be PUBLIC role" |
 grep -v "is out of range for type numeric: exceeds maximum precision" |
 grep -v "requested length too large" |
+grep -v "cannot materialize call to" | # CREATE MATERIALIZED VIEW
 
 grep -v "operator is not unique" | # random nulls
 grep -v "cannot be matched" | # random nulls
@@ -114,6 +115,7 @@ grep -v "CAST does not support casting from" | # random nulls
 grep -v "number of columns must be a positive integer literal" |
 grep -v "regex_extract requires a string literal as its first argument" |
 grep -v -E "column \".*\" does not exist" | # https://github.com/MaterializeInc/materialize/issues/20533
+grep -v -E "role \".*\" does not exist" |
 grep -v "SET clause does not support casting from interval to integer" |
 
 grep -v "Expected joined table, found" | # Should fix for multi table join

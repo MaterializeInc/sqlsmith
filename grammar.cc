@@ -742,13 +742,13 @@ void explain_stmt::out(std::ostream &out) {
     out << "with (";
     switch(d6()) {
     case 1:
-      out << "arity, join_impls";
+      out << "arity, join_impls, humanized_exprs";
       break;
     case 2:
-      out << "arity, join_impls, keys, types";
+      out << "arity, join_impls, keys, types, humanized_exprs";
       break;
     case 3:
-      out << "keys, types";
+      out << "keys, types, humanized_exprs";
       break;
     case 4:
       out << "keys";
@@ -774,6 +774,9 @@ void explain_stmt::out(std::ostream &out) {
   }
   if (for_supported) {
     out << "for ";
+  }
+  if(with_supported && d6() > 3) {
+    out << "create materialized view mv as ";
   }
   out << *q;
 }
