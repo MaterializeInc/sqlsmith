@@ -346,6 +346,14 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
         expr = "1E+37";
       else if (type->name == "float8")
         expr = "1E+307";
+      else if (type->name == "aclitem")
+        expr = "cast(null as aclitem)";
+      else if (type->name == "text[]")
+        expr = "array[null, 'foo']::text[]";
+      else if (type->name == "oid[]")
+        expr = "array[null, 12]::oid[]";
+      else if (type->name == "mz_aclitem[]")
+        expr = "array[null, null]::mz_aclitem[]";
       else
         expr = "cast(1 as " + type->name + ")";
     } else {
