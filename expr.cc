@@ -231,11 +231,11 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
     expr = "'{}'::map[text=>text]";
   else if (type->name == "anycompatiblemap")
     expr = "'{}'::map[text=>text]";
-  else if (type->name == "text[]")
+  else if (type->name == "text[]" || type->name == "_text")
     expr = "array['a', 'b', null, '']::text[]";
-  else if (type->name == "smallint[]")
+  else if (type->name == "smallint[]" || type->name == "_smallint")
     expr = "array[1, 2, 3, null]::smallint[]";
-  else if (type->name == "integer[]")
+  else if (type->name == "integer[]" || type->name == "_integer")
     expr = "array[1, 2, 3, null]::integer[]";
   else if (type->name == "jsonb")
     if (d6() == 1)
@@ -309,51 +309,51 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       expr = "INTERVAL '-2147483648 MONTHS'";
     else
       expr = "INTERVAL '1' MINUTE";
+  else if (type->name == "aclitem")
+    expr = "cast(null as aclitem)";
+  else if (type->name == "mz_aclitem")
+    expr = "cast(null as mz_aclitem)";
+  else if (type->name == "oid[]")
+    expr = "array[null, 12]::oid[]";
+  else if (type->name == "mz_aclitem[]" || type->name == "_mz_aclitem")
+    expr = "array[null, null]::mz_aclitem[]";
   else
     if (d6() == 1) {
       if (type->name == "int2")
-        expr = "-32768";
+        expr = "-32768::int2";
       else if (type->name == "int4")
-        expr = "-2147483648";
+        expr = "-2147483648::int4";
       else if (type->name == "int8")
-        expr = "-9223372036854775808";
+        expr = "-9223372036854775808::int8";
       else if (type->name == "uint2")
-        expr = "0";
+        expr = "0::uint2";
       else if (type->name == "uint4")
-        expr = "0";
+        expr = "0::uint4";
       else if (type->name == "uint8")
-        expr = "0";
+        expr = "0::uint8";
       else if (type->name == "float4")
-        expr = "1E-37";
+        expr = "1E-37::float4";
       else if (type->name == "float8")
-        expr = "1E-307";
+        expr = "1E-37::float8"; // see https://github.com/MaterializeInc/materialize/issues/22273
       else
         expr = "cast(0 as " + type->name + ")";
     } else if (d6() == 1) {
       if (type->name == "int2")
-        expr = "32767";
+        expr = "32767::int2";
       else if (type->name == "int4")
-        expr = "2147483647";
+        expr = "2147483647::int4";
       else if (type->name == "int8")
-        expr = "9223372036854775807";
+        expr = "9223372036854775807::int8";
       else if (type->name == "uint2")
-        expr = "65535";
+        expr = "65535::uint2";
       else if (type->name == "uint4")
-        expr = "4294967295";
+        expr = "4294967295::uint4";
       else if (type->name == "uint8")
-        expr = "18446744073709551615";
+        expr = "18446744073709551615::uint8";
       else if (type->name == "float4")
-        expr = "1E+37";
+        expr = "1E+37::float4";
       else if (type->name == "float8")
-        expr = "1E+307";
-      else if (type->name == "aclitem")
-        expr = "cast(null as aclitem)";
-      else if (type->name == "text[]")
-        expr = "array[null, 'foo']::text[]";
-      else if (type->name == "oid[]")
-        expr = "array[null, 12]::oid[]";
-      else if (type->name == "mz_aclitem[]")
-        expr = "array[null, null]::mz_aclitem[]";
+        expr = "1E+37::float8"; // see https://github.com/MaterializeInc/materialize/issues/22273
       else
         expr = "cast(1 as " + type->name + ")";
     } else {

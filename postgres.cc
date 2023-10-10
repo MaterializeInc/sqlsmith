@@ -248,6 +248,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     "JOIN mz_catalog.mz_types AS right_type "
     "ON mz_operators.argument_type_ids[2] = right_type.id "
     "WHERE array_length(mz_operators.argument_type_ids, 1) = 2 "
+    "AND mz_operators.name <> '<@' " // type system insufficient
+    "AND mz_operators.name <> '@>' " // type system insufficient
     "UNION SELECT "
     "mz_operators.name AS oprname, "
     "0 as oprleft, "
@@ -303,6 +305,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     "AND mz_functions.name <> 'date_bin_hopping' " // the date_bin_hopping function is not supported
     "AND mz_functions.name <> 'generate_series' " // out of memory on large data sets
     "AND NOT mz_functions.name like '%recv' " // https://github.com/MaterializeInc/materialize/issues/17870
+    "AND mz_functions.name <> 'pg_cancel_backend' " // pg_cancel_backend in this position not yet supported
     "AND NOT (" + procedure_is_aggregate + " or " + procedure_is_window + ") ");
 
   for (auto row : r) {
