@@ -161,6 +161,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
 	            "table_type "
 	     "from information_schema.tables "
        "where table_name not like 'mz_dataflow_operator_reachability%' " // https://github.com/MaterializeInc/materialize/issues/18296
+       "and table_name not like '%_raw' " // Can be huge, easy to go OoM
        );
   for (auto row = r.begin(); row != r.end(); ++row) {
     string schema(row[1].as<string>());
