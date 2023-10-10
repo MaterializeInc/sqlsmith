@@ -14,8 +14,8 @@ using namespace std;
 
 shared_ptr<table_ref> table_ref::factory(prod *p) {
   try {
-    if (p->level < 3 + d6()) {
-      if (d6() > 3 && p->level < d6() && g_joins > 0)
+    if (p->level < 6 + d6()) {
+      if (d6() > 3 && p->level < 3 + d6() && g_joins > 0)
 	g_joins--;
 	return make_shared<table_subquery>(p);
       // ERROR:  Expected ON, or USING after JOIN, found JOIN
