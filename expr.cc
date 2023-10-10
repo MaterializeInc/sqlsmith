@@ -317,6 +317,12 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
     expr = "array[null, 12]::oid[]";
   else if (type->name == "mz_aclitem[]" || type->name == "_mz_aclitem")
     expr = "array[null, null]::mz_aclitem[]";
+  else if (type->name == "aclitem[]" || type->name == "_aclitem")
+    expr = "array[null, null]::aclitem[]";
+  else if (type->name.rfind("[]") == type->name.size() - 3)
+    expr = "array[null, null]::" + type->name.substr(type->name.rfind("[]")) + "[]";
+  else if (type->name[0] == '_')
+    expr = "array[null, null]::" + type->name.substr(1, type->name.size()) + "[]";
   else
     if (d6() == 1) {
       if (type->name == "int2")
