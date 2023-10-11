@@ -147,4 +147,5 @@ grep -v "couldn't parse role id" | # https://github.com/MaterializeInc/materiali
 grep -v "is not of expected type ColumnType" | # https://github.com/MaterializeInc/materialize/issues/20077
 grep -v "coalesce could not convert type time" | # https://github.com/MaterializeInc/materialize/issues/20082
 grep -v "dimension values must not be null" |
+grep -v "arrays must not contain null values" |
 sort | uniq -c | sort -n

@@ -340,7 +340,7 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       else if (type->name == "float4")
         expr = "1E-37::float4";
       else if (type->name == "float8")
-        expr = "1E-37::float8"; // see https://github.com/MaterializeInc/materialize/issues/22273
+        expr = "'1E-307'::float8";
       else
         expr = "cast(0 as " + type->name + ")";
     } else if (d6() == 1) {
@@ -359,7 +359,7 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       else if (type->name == "float4")
         expr = "1E+37::float4";
       else if (type->name == "float8")
-        expr = "1E+37::float8"; // see https://github.com/MaterializeInc/materialize/issues/22273
+        expr = "'1E+307'::float8";
       else
         expr = "cast(1 as " + type->name + ")";
     } else {
