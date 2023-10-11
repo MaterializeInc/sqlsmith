@@ -178,26 +178,6 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
   }
   assert(tables.size() > 0);
 
-  r = w.exec("select matviewname, "
-            "schemaname, "
-                "'NO', "
-                "'VIEW' "
-         "from pg_matviews");
-
-  for (auto row = r.begin(); row != r.end(); ++row) {
-    string schema(row[1].as<string>());
-    string insertable(row[2].as<string>());
-    string table_type(row[3].as<string>());
-
-    if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
-        continue;
-
-    tables.push_back(table(row[0].as<string>(),
-               schema,
-               ((insertable == "YES") ? true : false),
-               ((table_type == "BASE TABLE") ? true : false)));
-  }
-
   cerr << "done." << endl;
 
   cerr << "Loading columns and constraints...";
