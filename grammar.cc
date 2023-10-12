@@ -384,6 +384,29 @@ delete_returning::delete_returning(prod *p, struct scope *s, table *victim)
   select_list = make_shared<struct select_list>(this);
 }
 
+comment_stmt::comment_stmt(prod *p, struct scope *s, table *v)
+  : modifying_stmt(p, s, v)
+{
+  match();
+  if(d6() < 4) {
+    victim_column = make_shared<column>(random_pick(victim->columns()));
+  }
+}
+
+void comment_stmt::out(std::ostream &out)
+{
+  out << "comment on ";
+
+  if(victim_column) {
+    out << "column " << victim->ident() << "." << victim_column->name;
+  } else {
+    out << "table " << victim->ident();
+  }
+
+  string comment = scope->stmt_uid("comment");
+  out << " is '" << comment << "'";
+}
+
 insert_stmt::insert_stmt(prod *p, struct scope *s, table *v)
   : modifying_stmt(p, s, v)
 {
@@ -484,13 +507,15 @@ shared_ptr<prod> statement_factory(struct scope *s, long max_joins, struct prod 
     // Syntax: ERROR:  Unexpected keyword MERGE at the beginning of a statement
     //if (d42() == 1)
     //  return make_shared<merge_stmt>(parent, s);
-    if (d42() == 1)
+    if (d42() < 3)
+      return make_shared<comment_stmt>(parent, s);
+    else if (d42() < 3)
       return make_shared<insert_stmt>(parent, s);
-    else if (d42() == 1)
+    else if (d42() < 3)
       return make_shared<delete_returning>(parent, s);
-    else if (d42() == 1)
+    else if (d42() < 3)
       return make_shared<upsert_stmt>(parent, s);
-    else if (d42() == 1)
+    else if (d42() < 3)
       return make_shared<update_returning>(parent, s);
     else if (d6() > 4)
       return make_shared<select_for_update>(parent, s);

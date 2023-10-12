@@ -206,6 +206,16 @@ struct delete_returning : delete_stmt {
   }
 };
 
+struct comment_stmt : modifying_stmt {
+  shared_ptr<column> victim_column;
+  comment_stmt(prod *p, struct scope *s, table *victim = 0);
+  virtual ~comment_stmt() {  }
+  virtual void out(std::ostream &out);
+  virtual void accept(prod_visitor *v) {
+    v->visit(this);
+  }
+};
+
 struct insert_stmt : modifying_stmt {
   vector<shared_ptr<value_expr> > value_exprs;
   insert_stmt(prod *p, struct scope *s, table *victim = 0);
