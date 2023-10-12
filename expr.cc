@@ -361,9 +361,13 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       else if (type->name == "float8")
         expr = "'1E+307'::float8";
       else
-        expr = "cast(1 as " + type->name + ")";
+        expr = "1::" + type->name;
+    } else if (d6() == 1) {
+      expr = "2::" + type->name;
+    } else if (d6() == 1) {
+      expr = "10::" + type->name;
     } else {
-      expr = "cast(null as " + type->name + ")";
+      expr = "null::" + type->name;
     }
 }
 
