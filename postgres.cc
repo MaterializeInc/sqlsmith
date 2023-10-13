@@ -203,7 +203,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     q = "select conname from pg_class t "
       "join pg_constraint c on (t.oid = c.conrelid) "
       "where contype in ('f', 'u', 'p') ";
-    q += " and relnamespace = " " (select oid from pg_namespace where nspname = " + w.quote(t->schema) + ")";
+    q += " and relnamespace = (select oid from pg_namespace where nspname = " + w.quote(t->schema) + ")";
     q += " and relname = " + w.quote(t->name);
 
     for (auto row : w.exec(q)) {
@@ -336,7 +336,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     "  mz_schemas.name AS nspname, "
     "  mz_functions.oid, "
     "  ret_type.oid AS prorettype, "
-    "  mz_functions.name AS proname "
+    "  mz_functions.name AS proname, "
+    "  mz_functions.returns_set "
     "FROM mz_catalog.mz_functions "
     "JOIN mz_catalog.mz_schemas "
     "ON mz_functions.schema_id = mz_schemas.id "
@@ -344,15 +345,17 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     "ON mz_functions.return_type_id = ret_type.id "
     "WHERE mz_functions.name not in ('pg_event_trigger_table_rewrite_reason', 'percentile_cont', 'dense_rank', 'cume_dist', 'rank', 'test_rank', 'percent_rank', 'percentile_disc', 'mode', 'test_percentile_disc') "
     "AND mz_functions.name !~ '^ri_fkey_' "
-    "AND NOT (mz_functions.name in ('sum', 'avg') AND ret_type.oid = 1186) " // https://github.com/MaterializeInc/materialize/issues/18043
+    "AND NOT (mz_functions.name in ('sum', 'avg', 'avg_internal_v1') AND ret_type.oid = 1186) " // https://github.com/MaterializeInc/materialize/issues/18043
     "AND mz_functions.name <> 'array_agg' " // https://github.com/MaterializeInc/materialize/issues/18044
+    "AND NOT (mz_functions.name = 'string_agg' AND ret_type.oid = 17) " // string_agg on BYTEA not yet supported
     "AND NOT mz_functions.name in ('mz_all', 'mz_any') " // https://github.com/MaterializeInc/materialize/issues/18057
     "AND " + procedure_is_aggregate + " AND NOT " + procedure_is_window);
   for (auto row : r) {
     routine proc(row[0].as<string>(),
 		 row[1].as<string>(),
-		 oid2type[row[2].as<OID>()],
-		 row[3].as<string>());
+		 oid2type[row[2].as<long>()],
+		 row[3].as<string>(),
+		 row[4].as<bool>());
     register_aggregate(proc);
   }
 
