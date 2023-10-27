@@ -513,8 +513,9 @@ shared_ptr<prod> statement_factory(struct scope *s, long max_joins, struct prod 
       return make_shared<insert_stmt>(parent, s);
     else if (d42() < 3)
       return make_shared<delete_returning>(parent, s);
-    else if (d42() < 3)
-      return make_shared<upsert_stmt>(parent, s);
+    // no constraints supported currently
+    //else if (d42() < 3)
+    //  return make_shared<upsert_stmt>(parent, s);
     else if (d42() < 3)
       return make_shared<update_returning>(parent, s);
     else if (d6() > 4)
@@ -800,7 +801,7 @@ void explain_stmt::out(std::ostream &out) {
   if (for_supported) {
     out << "for ";
   }
-  if(with_supported && d6() > 3) {
+  if(with_supported && d6() == 1) {
     out << "create materialized view mv as ";
   }
   out << *q;

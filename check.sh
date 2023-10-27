@@ -148,4 +148,7 @@ grep -v "is not of expected type ColumnType" | # https://github.com/MaterializeI
 grep -v "coalesce could not convert type time" | # https://github.com/MaterializeInc/materialize/issues/20082
 grep -v "dimension values must not be null" |
 grep -v "arrays must not contain null values" |
+grep -v "window functions are not allowed in table function arguments" |
+grep -v "window functions are not allowed in OR argument" |
+grep -v "window functions are not allowed in AND argument" |
 sort | uniq -c | sort -n

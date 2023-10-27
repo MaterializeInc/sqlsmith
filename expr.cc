@@ -17,9 +17,8 @@ using impedance::matched;
 shared_ptr<value_expr> value_expr::factory(prod *p, sqltype *type_constraint, bool can_return_set)
 {
   try {
-    // ERROR:  aggregate window functions not yet supported
-    //if (1 == d20() && p->level < d6() && window_function::allowed(p))
-    //  return make_shared<window_function>(p, type_constraint);
+    if (1 == d20() && p->level < d6() && window_function::allowed(p))
+      return make_shared<window_function>(p, type_constraint);
     if (1 == d42() && p->level < d6() && type_constraint && type_constraint->name.rfind("list", 0) != 0 && type_constraint->name.rfind("map", 0) != 0 && type_constraint->name.rfind("record", 0) != 0 && type_constraint->name.rfind("any", 0) != 0)
       return make_shared<coalesce>(p, type_constraint);
     else if (1 == d42() && p->level < d6() && type_constraint && type_constraint->name.rfind("list", 0) != 0 && type_constraint->name.rfind("map", 0) != 0 && type_constraint->name.rfind("record", 0) != 0 && type_constraint->name.rfind("any", 0) != 0)
@@ -557,7 +556,9 @@ window_function::window_function(prod *p, sqltype *type_constraint)
   : value_expr(p)
 {
   match();
-  aggregate = make_shared<funcall>(this, type_constraint, true);
+  //bool agg = d6() > 1;
+  bool agg = true;
+  aggregate = make_shared<funcall>(this, type_constraint, true, agg);
   type = aggregate->type;
   partition_by.push_back(make_shared<column_reference>(this));
   while(d6() > 4)
