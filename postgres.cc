@@ -286,6 +286,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog) : c(conninfo)
     "AND mz_functions.name <> 'generate_series' " // out of memory on large data sets
     "AND NOT mz_functions.name like '%recv' " // https://github.com/MaterializeInc/materialize/issues/17870
     "AND mz_functions.name <> 'pg_cancel_backend' " // pg_cancel_backend in this position not yet supported
+    "AND mz_functions.name <> 'csv_extract' " // https://github.com/MaterializeInc/materialize/issues/22735
     "AND NOT (" + procedure_is_aggregate + " or " + procedure_is_window + ") ");
 
   for (auto row : r) {
