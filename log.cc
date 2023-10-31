@@ -71,7 +71,6 @@ cerr_logger::cerr_logger()
 {
   ostringstream seed;
   seed << smith::rng;
-  cout << "seed: " << stoi(seed.str()) << endl;
 }
 
 void cerr_logger::report()

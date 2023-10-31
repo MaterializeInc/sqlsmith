@@ -46,7 +46,7 @@ struct schema_pqxx : public schema {
   virtual std::string quote_name(const std::string &id) {
     return c.quote_name(id);
   }
-  schema_pqxx(std::string &conninfo, bool no_catalog);
+  schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state, bool read_state);
 };
 
 struct dut_pqxx : dut_base {

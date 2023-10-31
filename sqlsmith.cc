@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
   cerr << PACKAGE_NAME " " GITREV << endl;
 
   map<string,string> options;
-  regex optregex("--(help|log-to|verbose|use-cluster|target|sqlite|monetdb|version|dump-all-graphs|dump-all-queries|seed|dry-run|max-queries|rng-state|exclude-catalog|explain-only|max-joins|log-json)(?:=((?:.|\n)*))?");
+  regex optregex("--(help|log-to|verbose|use-cluster|target|sqlite|monetdb|version|dump-all-graphs|dump-all-queries|seed|dry-run|max-queries|rng-state|exclude-catalog|explain-only|max-joins|log-json|dump-state|read-state)(?:=((?:.|\n)*))?");
   
   for(char **opt = argv+1 ;opt < argv+argc; opt++) {
     smatch match;
@@ -92,6 +92,8 @@ int main(int argc, char *argv[])
       "    --seed=int           seed RNG with specified int instead of PID" << endl <<
       "    --dump-all-queries   print queries as they are generated" << endl <<
       "    --dump-all-graphs    dump generated ASTs" << endl <<
+      "    --dump-state         dump the database state and exit" << endl <<
+      "    --read-state         read the database state from stdin instead of from DB" << endl <<
       "    --dry-run            print queries instead of executing them" << endl <<
       "    --exclude-catalog    don't generate queries using catalog relations" << endl <<
       "    --explain-only       only run EXPLAIN queries" << endl <<
@@ -159,7 +161,11 @@ int main(int argc, char *argv[])
       if (options.count("dump-all-queries"))
 	loggers.push_back(make_shared<query_dumper>());
 
-      schema = make_shared<schema_pqxx>(options["target"], options.count("exclude-catalog"));
+      schema = make_shared<schema_pqxx>(options["target"], options.count("exclude-catalog"), options.count("dump-state"), options.count("read-state"));
+
+      if (options.count("dump-state")) {
+        return 0;
+      }
 
       if (options.count("log-to"))
 	loggers.push_back(make_shared<pqxx_logger>(
