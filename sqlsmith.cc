@@ -14,6 +14,7 @@ using boost::regex_match;
 
 #include <thread>
 #include <typeinfo>
+#include <sstream>
 
 #include "random.hh"
 #include "grammar.hh"
@@ -35,6 +36,10 @@ using boost::regex_match;
 #endif
 
 #include "postgres.hh"
+
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 using namespace std;
 
@@ -181,17 +186,24 @@ int main(int argc, char *argv[])
         max_joins = stol(options["max-joins"]);
 
       if (options.count("dry-run")) {
+        assert(options.count("max-queries"));
+        long max_queries = stol(options["max-queries"]);
+        json data;
+        data["version"] = "1.0";
+        data["seed"] = options.count("seed") ? stoi(options["seed"]) : getpid();
+        data["max-queries"] = max_queries;
+        data["queries"] = json::array();
 	while (1) {
           shared_ptr<prod> gen = options.count("explain-only") ? explain_factory(&scope, max_joins) : statement_factory(&scope, max_joins);
-	  gen->out(cout);
-	  for (auto l : loggers)
-	    l->generated(*gen);
-	  cout << ";" << endl;
+          stringstream s;
+	  gen->out(s);
+          data["queries"].push_back(s.str());
 	  queries_generated++;
 
-	  if (options.count("max-queries")
-	      && (queries_generated >= stol(options["max-queries"])))
-	      return 0;
+	  if (queries_generated >= max_queries) {
+            std::cout << data.dump() << std::endl;
+            return 0;
+          }
 	}
       }
 
