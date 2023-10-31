@@ -188,7 +188,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
   cerr << "done." << endl;
 
   cerr << "Loading tables...";
-  if (read_state) {
+  // Reread table data since it might have changed
+  if (read_state && !dump_state) {
     for (const auto &obj : data["tables"]) {
       string schema = obj["schema"].get<string>();
       if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
@@ -243,7 +244,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
 
   int table_index = 0;
   for (auto t = tables.begin(); t != tables.end(); ++t) {
-    if (read_state) {
+    // Reread table data since it might have changed
+    if (read_state && !dump_state) {
       for (const auto &obj : data["tables"][table_index]["columns"]) {
         column c(obj["name"].get<string>(), oid2type[obj["type"].get<OID>()]);
         t->columns().push_back(c);
