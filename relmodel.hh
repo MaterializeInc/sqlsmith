@@ -63,16 +63,16 @@ struct aliased_relation : named_relation {
 };
 
 struct table : named_relation {
+  string db;
   string schema;
-  bool is_insertable;
   bool is_base_table;
   vector<string> constraints;
-  table(string name, string schema, bool insertable, bool base_table)
+  table(string name, string schema, string db, bool base_table)
     : named_relation(name),
       schema(schema),
-      is_insertable(insertable),
+      db(db),
       is_base_table(base_table) { }
-  virtual string ident() { return schema + "." + name; }
+  virtual string ident() { return db.empty() ? ("\"" + schema + "\".\"" + name + "\"") : ("\"" + db + "\".\"" + schema + "\".\"" + name + "\""); }
   virtual ~table() { };
 };
 

@@ -192,22 +192,30 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
   if (read_state && !dump_state) {
     for (const auto &obj : data["tables"]) {
       string schema = obj["schema"].get<string>();
+      string db = obj["db"].get<string>();
       if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
         continue;
 
       tables.push_back(table(obj["name"].get<string>(),
                              schema,
-                             ((obj["insertable"].get<string>() == "YES") ? true : false),
+                             db,
                              ((obj["table_type"].get<string>() == "BASE TABLE") ? true : false)));
     }
   } else {
-    r = w.exec("select table_name, "
-                      "table_schema, "
-                      "true, " //"is_insertable_into, " # column "is_insertable_into" does not exist
-                      "table_type "
-               "from information_schema.tables "
-         "where table_name not like 'mz_dataflow_operator_reachability%' " // https://github.com/MaterializeInc/materialize/issues/18296
-         "and table_name not like '%_raw' " // Can be huge, easy to go OoM
+    r = w.exec("SELECT "
+         "    r.name AS table_name, "
+         "    s.name AS table_schema, "
+         "    COALESCE(d.name, '') as table_catalog, "
+         "    CASE r.type "
+         "        WHEN 'materialized-view' THEN 'MATERIALIZED VIEW' "
+         "        WHEN 'table' THEN 'BASE TABLE' "
+         "        ELSE pg_catalog.upper(r.type) "
+         "    END AS table_type "
+         "FROM mz_catalog.mz_relations r "
+         "JOIN mz_catalog.mz_schemas s ON s.id = r.schema_id "
+         "LEFT JOIN mz_catalog.mz_databases d ON d.id = s.database_id "
+         "where r.name not like 'mz_dataflow_operator_reachability%' " // https://github.com/MaterializeInc/materialize/issues/18296
+         "and r.name not like '%_raw' " // Can be huge, easy to go OoM
          );
     if (dump_state) {
       data["tables"] = json::array();
@@ -215,7 +223,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
     for (auto row = r.begin(); row != r.end(); ++row) {
       string name(row[0].as<string>());
       string schema(row[1].as<string>());
-      string insertable(row[2].as<string>());
+      string db(row[2].as<string>());
       string table_type(row[3].as<string>());
 
       if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
@@ -223,14 +231,14 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
 
       tables.push_back(table(name,
                              schema,
-                             ((insertable == "YES") ? true : false),
+                             db,
                              ((table_type == "BASE TABLE") ? true : false)));
 
       if (dump_state) {
         json obj;
         obj["name"] = name,
         obj["schema"] = schema;
-        obj["insertable"] = insertable;
+        obj["db"] = db;
         obj["table_type"] = table_type;
         data["tables"].push_back(obj);
       }

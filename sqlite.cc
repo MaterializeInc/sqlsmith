@@ -45,7 +45,7 @@ extern "C" int table_callback(void *arg, int argc, char **argv, char **azColName
   (void) argc; (void) azColName;
   auto tables = (vector<table> *)arg;
   bool view = (string("view") == argv[0]);
-  table tab(argv[2], "main", !view, !view);
+  table tab(argv[2], "main", "sqlite", !view);
   tables->push_back(tab);
   return 0;
 }
@@ -109,7 +109,7 @@ schema_sqlite::schema_sqlite(std::string &conninfo, bool no_catalog)
   if (!no_catalog)
   {
 		// sqlite_master doesn't list itself, do it manually
-		table tab("sqlite_master", "main", false, false);
+		table tab("sqlite_master", "main", "sqlite", false);
 		tables.push_back(tab);
   }
   

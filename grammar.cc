@@ -274,8 +274,6 @@ struct for_update_verify : prod_visitor {
     table_or_query_name* tab = dynamic_cast<table_or_query_name*>(p);
     if (tab) {
       table *actual_table = dynamic_cast<table*>(tab->t);
-      if (actual_table && !actual_table->is_insertable)
-	throw("read only");
       if (actual_table->name.find("pg_"))
 	throw("catalog");
     }
@@ -283,8 +281,6 @@ struct for_update_verify : prod_visitor {
     //table_sample* sample = dynamic_cast<table_sample*>(p);
     //if (sample) {
     //  table *actual_table = dynamic_cast<table*>(sample->t);
-    //  if (actual_table && !actual_table->is_insertable)
-    //    throw("read only");
     //  if (actual_table->name.find("pg_"))
     //    throw("catalog");
     //}
