@@ -72,7 +72,7 @@ struct table : named_relation {
       schema(schema),
       db(db),
       is_base_table(base_table) { }
-  virtual string ident() { return db.empty() ? ("\"" + schema + "\".\"" + name + "\"") : ("\"" + db + "\".\"" + schema + "\".\"" + name + "\""); }
+  virtual string ident() { return db.empty() ? (schema + "." + name) : (db + "." + schema + "." + name); }
   virtual ~table() { };
 };
 

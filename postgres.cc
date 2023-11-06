@@ -196,9 +196,9 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
       if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
         continue;
 
-      tables.push_back(table(obj["name"].get<string>(),
-                             schema,
-                             db,
+      tables.push_back(table(w.quote_name(obj["name"].get<string>()),
+                             w.quote_name(schema),
+                             w.quote_name(db),
                              ((obj["table_type"].get<string>() == "BASE TABLE") ? true : false)));
     }
   } else {
@@ -229,9 +229,9 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
       if (no_catalog && ((schema == "pg_catalog") || (schema == "mz_catalog") || (schema == "mz_internal") || (schema == "information_schema")))
         continue;
 
-      tables.push_back(table(name,
-                             schema,
-                             db,
+      tables.push_back(table(w.quote_name(name),
+                             w.quote_name(schema),
+                             w.quote_name(db),
                              ((table_type == "BASE TABLE") ? true : false)));
 
       if (dump_state) {
@@ -279,12 +279,12 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
 
       r = w.exec(q);
       for (auto row : r) {
-        column c(row[0].as<string>(), oid2type[row[1].as<OID>()]);
+        column c(w.quote_name(row[0].as<string>()), oid2type[row[1].as<OID>()]);
         t->columns().push_back(c);
 
         if (dump_state) {
           json obj;
-          obj["name"] = row[0].as<string>();
+          obj["name"] = w.quote_name(row[0].as<string>());
           obj["type"] = row[1].as<OID>();
           data["tables"][table_index]["columns"].push_back(obj);
         }
