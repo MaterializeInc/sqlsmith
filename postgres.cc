@@ -483,8 +483,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
           }
         }
       }
-      routine_index++;
     }
+    routine_index++;
   }
   cerr << "done." << endl;
 
