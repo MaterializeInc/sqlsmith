@@ -483,8 +483,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
           }
         }
       }
+      routine_index++;
     }
-    routine_index++;
   }
   cerr << "done." << endl;
 
@@ -550,7 +550,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
     // unnest is broken: https://github.com/MaterializeInc/materialize/issues/17979
     //string q("select (select oid from mz_types where a = id) from mz_functions, lateral unnest(argument_type_ids) as a where oid = ");
     if (read_state) {
-      for (const auto &obj : data["aggregates"][routine_index]["parameters"]) {
+      for (const auto &obj : data["aggregates"][aggregate_index]["parameters"]) {
           proc.argtypes.push_back(oid2type[obj.get<OID>()]);
       }
     } else {
@@ -584,7 +584,6 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
         }
       }
     }
-
     aggregate_index++;
   }
   cerr << "done." << endl;
