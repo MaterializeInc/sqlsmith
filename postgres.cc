@@ -198,7 +198,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
 
       tables.push_back(table(w.quote_name(obj["name"].get<string>()),
                              w.quote_name(schema),
-                             w.quote_name(db),
+                             db.empty() ? db : w.quote_name(db),
                              ((obj["table_type"].get<string>() == "BASE TABLE") ? true : false)));
     }
   } else {
@@ -231,7 +231,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
 
       tables.push_back(table(w.quote_name(name),
                              w.quote_name(schema),
-                             w.quote_name(db),
+                             db.empty() ? db : w.quote_name(db),
                              ((table_type == "BASE TABLE") ? true : false)));
 
       if (dump_state) {
