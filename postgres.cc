@@ -402,7 +402,8 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
       "AND mz_functions.name <> 'list_n_layers' " // list_n_layers is unsupported
       "AND mz_functions.name <> 'list_remove' " // list_remove is unsupported
       "AND mz_functions.name <> 'concat_agg' " // concat_agg not yet supported
-      "AND mz_functions.name <> 'array_in' " // array_in not yet supported
+      "AND NOT mz_functions.name like '%\\_in' " // all _in functions are not yet supported
+      "AND NOT mz_functions.name in ('aclitemin', 'boolin', 'bpcharin', 'byteain', 'charin', 'float4in', 'float8in', 'int2in', 'int2vectorin', 'int4in', 'int8in', 'namein', 'oidin', 'regclassin', 'regprocin', 'regtypein', 'textin', 'varcharin') " // all in functions are not yet supported, but don't exclude functions like 'min', 'sin', date_bin', so better keep an explicit list
       "AND mz_functions.name <> 'mz_row_size' " // mz_row_size requires a record type
       "AND mz_functions.name <> 'jsonb_build_object' " // argument list must have even number of elements
       "AND mz_functions.name <> 'mz_now' " // https://github.com/MaterializeInc/materialize/issues/18045
