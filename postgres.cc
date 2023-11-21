@@ -416,6 +416,7 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
       "AND mz_functions.name <> 'pg_cancel_backend' " // pg_cancel_backend in this position not yet supported
       "AND (mz_functions.name <> 'sum' OR mz_functions.return_type_id <> (select id from mz_types where name = 'interval'))" // sum(interval) not yet supported, see https://github.com/MaterializeInc/materialize/issues/18043
       "AND (mz_functions.name <> 'timezone' OR mz_functions.argument_type_ids[2] <> (select id from mz_types where name = 'time'))" // timezone with time type is intentionally not supported, see https://github.com/MaterializeInc/materialize/pull/22960
+      "AND mz_functions.name <> 'pretty_sql' " // Expected a keyword at the beginning of a statement, found ...
       "AND NOT (" + procedure_is_aggregate + " or " + procedure_is_window + ") ");
 
     if (dump_state) {
