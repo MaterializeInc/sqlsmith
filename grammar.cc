@@ -334,9 +334,10 @@ query_spec::query_spec(prod *p, struct scope *s, bool lateral) :
 
   search = bool_expr::factory(this);
 
-  if (d6() > 2) {
+  if (d6() > 1) {
     ostringstream cons;
-    cons << "limit " << d100() + d100();
+    auto expr = value_expr::factory(this, sqltype::get("int"), false);
+    cons << "limit coalesce(" << *expr << ", " << d100() + d100() << ")";
     limit_clause = cons.str();
   }
 }

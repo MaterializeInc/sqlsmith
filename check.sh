@@ -113,7 +113,7 @@ grep -v "CAST does not support casting from" | # random nulls
 
 # Functions returning sets:
 grep -v "number of columns must be a positive integer literal" |
-grep -v "regex_extract requires a string literal as its first argument" |
+grep -v "regexp_extract requires a string literal as its first argument" |
 grep -v -E "column \".*\" does not exist" | # https://github.com/MaterializeInc/materialize/issues/20533
 grep -v -E "role \".*\" does not exist" |
 grep -v "SET clause does not support casting from interval to integer" |
