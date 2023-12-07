@@ -32,7 +32,7 @@ void prod::retry()
   
   impedance::limit(this);
   throw std::runtime_error(std::string("excessive retries in ")
-			   + typeid(*this).name());
+        		   + typeid(*this).name());
 }
 
 void prod::match()

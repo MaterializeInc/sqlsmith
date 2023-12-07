@@ -21,7 +21,7 @@ grep -v "cannot return complex numbers" |
 grep -v "unrecognized privilege type" |
 grep -v "statement batch size cannot exceed" |
 grep -v "operator does not exist" | # For list types
-grep -v "does not exist" | # For roles
+#grep -v "does not exist" | # For roles
 # Refinement:
 grep -v "value too long for type" |
 grep -v "list_agg on char not yet supported" |
@@ -151,4 +151,5 @@ grep -v "arrays must not contain null values" |
 grep -v "window functions are not allowed in table function arguments" |
 grep -v "window functions are not allowed in OR argument" |
 grep -v "window functions are not allowed in AND argument" |
+grep -v "LIMIT must not be negative" |
 sort | uniq -c | sort -n

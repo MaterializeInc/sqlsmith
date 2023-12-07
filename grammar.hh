@@ -134,12 +134,13 @@ struct query_spec : prod {
   shared_ptr<struct from_clause> from_clause;
   shared_ptr<struct select_list> select_list;
   shared_ptr<bool_expr> search;
-  std::string limit_clause;
+  shared_ptr<value_expr> limit;
   struct scope myscope;
   virtual void out(std::ostream &out);
   query_spec(prod *p, struct scope *s, bool lateral = 0);
   virtual void accept(prod_visitor *v) {
     v->visit(this);
+    limit->accept(v);
     select_list->accept(v);
     from_clause->accept(v);
     search->accept(v);
