@@ -761,22 +761,22 @@ void explain_stmt::out(std::ostream &out) {
     out << "with (";
     switch(d6()) {
     case 1:
-      out << "arity, join_impls, humanized_exprs";
+      out << "arity, join implementations, humanized expressions, filter pushdown";
       break;
     case 2:
-      out << "arity, join_impls, keys, types, humanized_exprs";
+      out << "arity, join implementations, keys, types, humanized expressions, no fast path, redacted, raw syntax, filter pushdown";
       break;
     case 3:
-      out << "keys, types, humanized_exprs";
+      out << "keys, types, humanized expressions";
       break;
     case 4:
-      out << "keys";
+      out << "keys, redacted, non negative";
       break;
     case 5:
-      out << "join_impls, types";
+      out << "join implementations, types";
       break;
     case 6:
-      out << "types";
+      out << "types, no fast path";
       break;
     }
     out << ") ";
