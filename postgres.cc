@@ -588,7 +588,11 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
     aggregate_index++;
   }
   cerr << "done." << endl;
+#ifdef HAVE_LIBPQXX7
+  c.close();
+#else
   c.disconnect();
+#endif
 
   if (dump_state) {
     std::cout << data.dump(4) << std::endl;
