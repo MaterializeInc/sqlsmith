@@ -14,6 +14,7 @@ void schema::generate_indexes() {
 
   for (auto &type: types) {
     assert(type);
+    types_by_name[type->name] = type;
     for(auto &r: aggregates) {
       if (type->consistent(r.restype))
 	      aggregates_returning_type[type].push_back(&r);

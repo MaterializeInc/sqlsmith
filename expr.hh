@@ -194,11 +194,23 @@ struct window_function : value_expr {
   window_function(prod *p, sqltype *type_constraint);
   vector<shared_ptr<column_reference> > partition_by;
   vector<shared_ptr<column_reference> > order_by;
+  /// Set for aggregate window functions, null for ranking/value functions.
   shared_ptr<funcall> aggregate;
+  /// Function name for ranking/value window functions (row_number, lag, ...).
+  string funcname;
+  /// Argument for value window functions (lag, lead, first_value, last_value).
+  shared_ptr<value_expr> arg;
+  /// Extra literal arguments (lag/lead offset, ntile bucket count).
+  string extra_args;
+  /// Frame clause including leading space, or empty.
+  string frame;
   static bool allowed(prod *pprod);
   virtual void accept(prod_visitor *v) {
     v->visit(this);
-    aggregate->accept(v);
+    if (aggregate)
+      aggregate->accept(v);
+    if (arg)
+      arg->accept(v);
     for (auto p : partition_by)
       p->accept(v);
     for (auto p : order_by)

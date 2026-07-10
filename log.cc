@@ -142,6 +142,13 @@ json_logger::json_logger()
 
 void json_logger::report()
 {
+  ostringstream s;
+  impedance::report(s);
+  try {
+    data["impedance"] = json::parse(s.str())["impedance"];
+  } catch (json::parse_error &e) {
+    /* don't lose the run report over malformed impedance stats */
+  }
   std::cout << data.dump(4) << std::endl;
 }
 

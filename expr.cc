@@ -48,12 +48,14 @@ case_expr::case_expr(prod *p, sqltype *type_constraint)
   true_expr = value_expr::factory(this, type_constraint, false);
   false_expr = value_expr::factory(this, true_expr->type, false);
 
-  if(false_expr->type != true_expr->type) {
+  retry_limit = 20;
+  while(false_expr->type != true_expr->type) {
+       retry();
        /* Types are consistent but not identical.  Try to find a more
 	  concrete one for a better match. */
        if (true_expr->type->consistent(false_expr->type))
 	    true_expr = value_expr::factory(this, false_expr->type, false);
-       else 
+       else
 	    false_expr = value_expr::factory(this, true_expr->type, false);
   }
   type = true_expr->type;
@@ -63,7 +65,7 @@ void case_expr::out(std::ostream &out)
 {
   out << "case when " << *condition;
   out << " then " << *true_expr;
-  out << " else " << *true_expr;
+  out << " else " << *false_expr;
   out << " end";
   indent(out);
 }
@@ -109,9 +111,11 @@ shared_ptr<bool_expr> bool_expr::factory(prod *p)
        else if (d6() < 4 && g_joins > 0) {
 	    g_joins--;
 	    return make_shared<exists_predicate>(p);
-       } else
+       }
+       else if (d6() < 3)
+	    return make_shared<distinct_pred>(p);
+       else
 	    return make_shared<truth_value>(p);
-//     return make_shared<distinct_pred>(q);
   } catch (runtime_error &e) {
   }
   p->retry();
@@ -195,6 +199,55 @@ void coalesce::out(std::ostream &out)
   out << " as " << type->name << ")";
 }
 
+/* Interesting string literals: empty/whitespace, LIKE metacharacters,
+   quoting/escaping hazards, unicode of various widths, casts-in-disguise
+   and a long string.  All pre-escaped for use in single quotes. */
+static const char *interesting_strings[] = {
+  "",
+  "a",
+  "A A",
+  " ",
+  "  padded  ",
+  "0",
+  "-1",
+  "null",
+  "%",
+  "_",
+  "%_%",
+  "\\",
+  "''",
+  "a''b\\c\"d",
+  "ß",
+  "áéíóú",
+  "日本語",
+  "🌍🌍",
+  "\U0001D11E",
+  "{\"a\": 1}",
+  "{1,2,3}",
+  "2023-01-01",
+  "1 day",
+  "inf",
+  "NaN",
+  "0123456789012345678901234567890123456789",
+};
+
+static std::string random_string_literal()
+{
+  if (d6() < 6) {
+    size_t idx = d100() % (sizeof(interesting_strings)/sizeof(*interesting_strings));
+    return std::string("'") + interesting_strings[idx] + "'";
+  }
+  /* random short string over a small alphabet including LIKE
+     metacharacters and multi-byte characters */
+  static const char *alphabet[] = {"a", "b", "Z", "0", " ", "%", "_", "ß", "''"};
+  std::string result = "'";
+  int len = d6();
+  for (int i = 0; i < len; i++)
+    result += alphabet[d9() - 1];
+  result += "'";
+  return result;
+}
+
 const_expr::const_expr(prod *p, sqltype *type_constraint)
     : value_expr(p), expr("")
 {
@@ -212,6 +265,12 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
     expr = "null";
   else if (type->name == "anycompatible")
     expr = "null";
+  /* an untyped literal lets the function/operator overload resolution
+     pick a concrete type, an explicit cast to the pseudo type would
+     always error */
+  else if (type->name == "anynonarray" || type->name == "anyelement"
+           || type->name == "anycompatiblenonarray")
+    expr = (d6() < 4) ? random_string_literal() : "null";
   else if (type->name == "anyarray")
     expr = "array[null, null]";
   else if (type->name == "anycompatiblearray")
@@ -254,6 +313,14 @@ const_expr::const_expr(prod *p, sqltype *type_constraint)
       expr = "cast('\\xFFFFFF' as bytea)";
     else
       expr = "cast('\\xDEADBEEF' as bytea)";
+  /* cast so the literal is not of type unknown, which polymorphic
+     functions reject.  bpchar stays uncast, a bare bpchar cast means
+     char(1) and would truncate. */
+  else if (type->name == "text" || type->name == "varchar"
+           || type->name == "name")
+    expr = random_string_literal() + "::" + type->name;
+  else if (type->name == "bpchar")
+    expr = random_string_literal();
   else if (type->name == "uuid")
     if (d6() == 1)
       expr = "UUID '00000000-0000-0000-0000-000000000000'";
@@ -533,8 +600,16 @@ void atomic_subselect::out(std::ostream &out)
 void window_function::out(std::ostream &out)
 {
   indent(out);
-  out << *aggregate << " over (partition by ";
-    
+  if (aggregate)
+    out << *aggregate;
+  else {
+    out << funcname << "(";
+    if (arg)
+      out << *arg;
+    out << extra_args << ")";
+  }
+  out << " over (partition by ";
+
   for (auto ref = partition_by.begin(); ref != partition_by.end(); ref++) {
     out << **ref;
     if (ref+1 != partition_by.end())
@@ -542,24 +617,71 @@ void window_function::out(std::ostream &out)
   }
 
   out << " order by ";
-    
+
   for (auto ref = order_by.begin(); ref != order_by.end(); ref++) {
     out << **ref;
     if (ref+1 != order_by.end())
       out << ",";
   }
 
+  out << frame;
   out << ")";
+}
+
+/* Random window frame clause, with leading space.  Only combinations
+   Materialize supports: GROUPS mode and frames mixing an UNBOUNDED
+   bound with an offset bound are rejected. */
+static std::string random_frame_clause()
+{
+  if (d6() < 4)
+    return "";
+  static const char *frames[] = {
+    " range between unbounded preceding and current row",
+    " rows between unbounded preceding and current row",
+    " rows between unbounded preceding and unbounded following",
+    " rows between current row and unbounded following",
+    " rows between 2 preceding and current row",
+    " rows between current row and 3 following",
+    " rows between 2 preceding and 3 following",
+    " rows between 1 following and 3 following",
+    " rows between 3 preceding and 1 preceding",
+  };
+  return frames[d9() - 1];
 }
 
 window_function::window_function(prod *p, sqltype *type_constraint)
   : value_expr(p)
 {
   match();
-  //bool agg = d6() > 1;
-  bool agg = true;
-  aggregate = make_shared<funcall>(this, type_constraint, true, agg);
-  type = aggregate->type;
+  int kind = d12();
+  if (kind <= 6) {
+    /* aggregate window function */
+    aggregate = make_shared<funcall>(this, type_constraint, true, true);
+    type = aggregate->type;
+    if (!concrete_result_type(type))
+      fail("window aggregate with pseudo result type");
+    frame = random_frame_clause();
+  } else if (kind <= 9) {
+    /* ranking window function */
+    static const char *ranking[] = {"row_number", "rank", "dense_rank"};
+    funcname = ranking[d6() % 3];
+    type = scope->schema->types_by_name["int8"];
+    if (type_constraint && !type_constraint->consistent(type))
+      fail("ranking window function does not match type constraint");
+  } else {
+    /* value window function */
+    static const char *value_funcs[] = {"lag", "lead", "first_value",
+                                        "last_value"};
+    funcname = value_funcs[d6() % 4];
+    arg = value_expr::factory(this, type_constraint, false);
+    type = arg->type;
+    if (funcname == "lag" || funcname == "lead") {
+      if (d6() < 3)
+        extra_args = ", " + std::to_string(d6());
+    } else {
+      frame = random_frame_clause();
+    }
+  }
   partition_by.push_back(make_shared<column_reference>(this));
   while(d6() > 4)
     partition_by.push_back(make_shared<column_reference>(this));
@@ -571,8 +693,12 @@ window_function::window_function(prod *p, sqltype *type_constraint)
 
 bool window_function::allowed(prod *p)
 {
-  if (dynamic_cast<select_list *>(p))
-    return dynamic_cast<query_spec *>(p->pprod) ? true : false;
+  if (dynamic_cast<select_list *>(p)) {
+    /* only in the select list of a query_spec, and not in a grouped
+       query where the select list items become grouping keys */
+    query_spec *q = dynamic_cast<query_spec *>(p->pprod);
+    return q && !q->has_group_by;
+  }
   if (dynamic_cast<window_function *>(p))
     return false;
   if (dynamic_cast<value_expr *>(p))

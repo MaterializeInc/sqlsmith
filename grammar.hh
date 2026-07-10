@@ -61,6 +61,24 @@ struct lateral_subquery : table_subquery {
     : table_subquery(p, true) {  }
 };
 
+/// Table function call in a FROM clause, e.g. unnest(...) with ordinality.
+struct table_function_ref : table_ref {
+  virtual void out(std::ostream &out);
+  table_function_ref(prod *p);
+  virtual ~table_function_ref() { }
+  virtual void accept(prod_visitor *v) {
+    v->visit(this);
+    for (auto p : args)
+      p->accept(v);
+  }
+  string funcname;
+  vector<shared_ptr<value_expr> > args;
+  /// Literal arguments emitted before the value_expr args.
+  string literal_args;
+  bool with_ordinality;
+  relation derived_table;
+};
+
 struct join_cond : prod {
      static shared_ptr<join_cond> factory(prod *p, table_ref &lhs, table_ref &rhs);
      join_cond(prod *p, table_ref &lhs, table_ref &rhs)
@@ -119,7 +137,9 @@ struct select_list : prod {
   std::vector<shared_ptr<value_expr> > value_exprs;
   relation derived_table;
   int columns = 0;
-  select_list(prod *p);
+  /// Without a template, generates a random number of columns of random
+  /// types.  With a template, generates exactly one column per type.
+  select_list(prod *p, vector<sqltype *> *templ = 0);
   virtual void out(std::ostream &out);
   ~select_list() { }
   virtual void accept(prod_visitor *v) {
@@ -134,14 +154,29 @@ struct query_spec : prod {
   shared_ptr<struct from_clause> from_clause;
   shared_ptr<struct select_list> select_list;
   shared_ptr<bool_expr> search;
+  /// When set, the plain select list items become grouping keys
+  /// (referenced by ordinal) and aggregates are appended to the select
+  /// list.  Checked by window_function::allowed() during generation.
+  bool has_group_by = false;
+  size_t group_by_cols = 0;
+  shared_ptr<value_expr> having_agg;
+  shared_ptr<value_expr> having_rhs;
+  const char *having_op = 0;
+  std::string order_clause;
+  std::string limit_clause;
   struct scope myscope;
   virtual void out(std::ostream &out);
-  query_spec(prod *p, struct scope *s, bool lateral = 0);
+  query_spec(prod *p, struct scope *s, bool lateral = 0,
+             vector<sqltype *> *templ = 0);
   virtual void accept(prod_visitor *v) {
     v->visit(this);
     select_list->accept(v);
     from_clause->accept(v);
     search->accept(v);
+    if (having_agg)
+      having_agg->accept(v);
+    if (having_rhs)
+      having_rhs->accept(v);
   }
 };
 
@@ -322,6 +357,45 @@ struct update_returning : update_stmt {
     select_list->accept(v);
   }
 };
+
+/// Set operation over two or more type-compatible SELECTs, e.g.
+/// (q1) union all (q2) except (q3).
+struct set_op_query : prod {
+  struct scope myscope;
+  vector<shared_ptr<query_spec> > operands;
+  vector<string> setops;
+  set_op_query(prod *p, struct scope *s);
+  virtual void out(std::ostream &out);
+  virtual void accept(prod_visitor *v) {
+    v->visit(this);
+    for (auto q : operands)
+      q->accept(v);
+  }
+};
+
+/// WITH MUTUALLY RECURSIVE query.  Always emits RETURN AT RECURSION
+/// LIMIT so non-converging bindings terminate instead of timing out.
+struct wmr_query : prod {
+  struct scope myscope;
+  long recursion_limit;
+  vector<shared_ptr<named_relation> > bindings;
+  vector<shared_ptr<relation> > binding_rels;
+  vector<vector<sqltype *> > binding_types;
+  vector<shared_ptr<query_spec> > binding_queries;
+  shared_ptr<query_spec> query;
+  wmr_query(prod *p, struct scope *s);
+  virtual void out(std::ostream &out);
+  virtual void accept(prod_visitor *v) {
+    v->visit(this);
+    for (auto q : binding_queries)
+      q->accept(v);
+    query->accept(v);
+  }
+};
+
+/// Whether a result type is concrete enough to be used as a select list
+/// column without drawing "cannot reference pseudo type" errors.
+bool concrete_result_type(sqltype *t);
 
 shared_ptr<prod> statement_factory(struct scope *s, long max_joins=1, struct prod *parent = 0);
 

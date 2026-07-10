@@ -15,17 +15,17 @@ using namespace std;
 shared_ptr<table_ref> table_ref::factory(prod *p) {
   try {
     if (p->level < 6 + d6()) {
-      if (d6() > 3 && p->level < 3 + d6() && g_joins > 0)
+      if (d6() > 3 && p->level < 3 + d6() && g_joins > 0) {
 	g_joins--;
 	return make_shared<table_subquery>(p);
-      // ERROR:  Expected ON, or USING after JOIN, found JOIN
-      if (d6() > 3 && g_joins > 0)
-      {
+      }
+      if (d6() > 3 && g_joins > 0) {
 	g_joins--;
 	return make_shared<joined_table>(p);
       }
+      if (d6() == 6)
+	return make_shared<table_function_ref>(p);
     }
-    //if (d6() > 3)
     return make_shared<table_or_query_name>(p);
     // Syntax: ERROR:  Expected joined table, found dot
     //else
@@ -96,6 +96,79 @@ table_subquery::table_subquery(prod *p, bool lateral)
 
 table_subquery::~table_subquery() { }
 
+table_function_ref::table_function_ref(prod *p)
+  : table_ref(p), with_ordinality(d6() == 6)
+{
+  match();
+  auto need = [this](const char *name) {
+    sqltype *t = scope->schema->types_by_name[name];
+    if (!t)
+      fail("table function argument type not in schema");
+    return t;
+  };
+  string alias = scope->stmt_uid("tf");
+
+  switch (d6()) {
+  case 1:
+  case 2:
+    funcname = "unnest";
+    if (d6() < 4) {
+      args.push_back(value_expr::factory(this, need("_int4"), false));
+      derived_table.columns().push_back(column("c0", need("int4")));
+    } else {
+      args.push_back(value_expr::factory(this, need("_text"), false));
+      derived_table.columns().push_back(column("c0", need("text")));
+    }
+    break;
+  case 3:
+  case 4:
+    /* small bounds, generate_series over large ranges can go OoM */
+    funcname = "generate_series";
+    literal_args = std::to_string(d100()) + ", " + std::to_string(d100());
+    derived_table.columns().push_back(column("c0", need("int4")));
+    break;
+  case 5:
+    funcname = "jsonb_each";
+    args.push_back(value_expr::factory(this, need("jsonb"), false));
+    derived_table.columns().push_back(column("c0", need("text")));
+    derived_table.columns().push_back(column("c1", need("jsonb")));
+    break;
+  default:
+    funcname = "jsonb_array_elements";
+    args.push_back(value_expr::factory(this, need("jsonb"), false));
+    derived_table.columns().push_back(column("c0", need("jsonb")));
+    break;
+  }
+
+  if (with_ordinality) {
+    ostringstream name;
+    name << "c" << derived_table.columns().size();
+    derived_table.columns().push_back(column(name.str(), need("int8")));
+  }
+
+  refs.push_back(make_shared<aliased_relation>(alias, &derived_table));
+}
+
+void table_function_ref::out(std::ostream &out) {
+  out << funcname << "(" << literal_args;
+  for (auto arg = args.begin(); arg != args.end(); arg++) {
+    out << **arg;
+    if (arg+1 != args.end())
+      out << ", ";
+  }
+  out << ")";
+  if (with_ordinality)
+    out << " with ordinality";
+  out << " as " << refs[0]->ident() << " (";
+  auto &cols = derived_table.columns();
+  for (size_t i = 0; i < cols.size(); i++) {
+    out << cols[i].name;
+    if (i+1 != cols.size())
+      out << ", ";
+  }
+  out << ")";
+}
+
 void table_subquery::accept(prod_visitor *v) {
   query->accept(v);
   v->visit(this);
@@ -164,14 +237,15 @@ joined_table::joined_table(prod *p) : table_ref(p) {
 
   condition = join_cond::factory(this, *lhs, *rhs);
 
-  // Syntax: ERROR:  Expected ON, or USING after JOIN, found INNER
-  //if (d6()<4) {
-  //  type = "inner";
-  //} else if (d6()<4) {
-  //  type = "left";
-  //} else {
-  //  type = "right";
-  //}
+  if (d6() < 4) {
+    type = "inner";
+  } else if (d6() < 3) {
+    type = "left";
+  } else if (d6() < 3) {
+    type = "right";
+  } else {
+    type = "full outer";
+  }
 
   for (auto ref: lhs->refs)
     refs.push_back(ref);
@@ -180,9 +254,22 @@ joined_table::joined_table(prod *p) : table_ref(p) {
 }
 
 void joined_table::out(std::ostream &out) {
+  /* nested joins need parentheses, the parser does not accept
+     an unparenthesized join as the operand of another join */
+  bool lhs_join = 0 != dynamic_cast<joined_table *>(&*lhs);
+  bool rhs_join = 0 != dynamic_cast<joined_table *>(&*rhs);
+  if (lhs_join)
+    out << "(";
   out << *lhs;
+  if (lhs_join)
+    out << ")";
   indent(out);
-  out << type << " join " << *rhs;
+  out << type << " join ";
+  if (rhs_join)
+    out << "(";
+  out << *rhs;
+  if (rhs_join)
+    out << ")";
   indent(out);
   out << "on (" << *condition << ")";
 }
@@ -222,17 +309,39 @@ from_clause::from_clause(prod *p) : prod(p) {
   }
 }
 
-select_list::select_list(prod *p) : prod(p)
+/* Pseudo result types poison the enclosing query: a select list item of
+   pseudo type draws "cannot reference pseudo type" errors. */
+bool concrete_result_type(sqltype *t)
 {
+  const string &n = t->name;
+  return !(n.rfind("any", 0) == 0 || n == "record" || n == "unknown"
+	   || n == "cstring" || n == "internal" || n == "void");
+}
+
+select_list::select_list(prod *p, vector<sqltype *> *templ) : prod(p)
+{
+  size_t i = 0;
   do {
-    shared_ptr<value_expr> e = value_expr::factory(this, nullptr, true);
+    shared_ptr<value_expr> e;
+    if (templ) {
+      /* consistent is not enough, set operation operands and WITH
+	 MUTUALLY RECURSIVE bindings need the exact type */
+      sqltype *want = (*templ)[i++];
+      e = value_expr::factory(this, want, true);
+      while (e->type != want) {
+	retry();
+	e = value_expr::factory(this, want, true);
+      }
+    } else {
+      e = value_expr::factory(this, nullptr, true);
+    }
     value_exprs.push_back(e);
     ostringstream name;
     name << "c" << columns++;
     sqltype *t=e->type;
     assert(t);
     derived_table.columns().push_back(column(name.str(), t));
-  } while (d6() > 1);
+  } while (templ ? i < templ->size() : d6() > 1);
 }
 
 void select_list::out(std::ostream &out)
@@ -255,6 +364,28 @@ void query_spec::out(std::ostream &out) {
   indent(out);
   out << "where ";
   out << *search;
+  if (has_group_by) {
+    indent(out);
+    out << "group by ";
+    for (size_t i = 1; i <= group_by_cols; i++) {
+      out << i;
+      if (i != group_by_cols)
+	out << ", ";
+    }
+    if (having_agg) {
+      indent(out);
+      out << "having (" << *having_agg << ") " << having_op
+	  << " (" << *having_rhs << ")";
+    }
+  }
+  if (order_clause.size()) {
+    indent(out);
+    out << order_clause;
+  }
+  if (limit_clause.size()) {
+    indent(out);
+    out << limit_clause;
+  }
 }
 
 struct for_update_verify : prod_visitor {
@@ -304,6 +435,9 @@ select_for_update::select_for_update(prod *p, struct scope *s, bool lateral)
   }
   lockmode = modes[d6()%(sizeof(modes)/sizeof(*modes))];
   set_quantifier = ""; // disallow distinct
+  // the parser does not accept ORDER BY/LIMIT before FOR <lockmode>
+  order_clause = "";
+  limit_clause = "";
 }
 
 void select_for_update::out(std::ostream &out) {
@@ -314,7 +448,8 @@ void select_for_update::out(std::ostream &out) {
   }
 }
 
-query_spec::query_spec(prod *p, struct scope *s, bool lateral) :
+query_spec::query_spec(prod *p, struct scope *s, bool lateral,
+                       vector<sqltype *> *templ) :
   prod(p), myscope(s)
 {
   scope = &myscope;
@@ -323,12 +458,68 @@ query_spec::query_spec(prod *p, struct scope *s, bool lateral) :
   if (lateral)
     scope->refs = s->refs;
 
+  /* must be decided before the select list is generated, see
+     window_function::allowed().  Grouping and a column template are
+     mutually exclusive since grouping appends aggregate columns. */
+  has_group_by = !templ && d9() == 1;
+
   from_clause = make_shared<struct from_clause>(this);
-  select_list = make_shared<struct select_list>(this);
-  
+  select_list = make_shared<struct select_list>(this, templ);
+
+  if (has_group_by) {
+    group_by_cols = select_list->value_exprs.size();
+    do {
+      auto agg = make_shared<funcall>(this, nullptr, false, true);
+      if (!concrete_result_type(agg->type)) {
+	retry();
+	continue;
+      }
+      select_list->value_exprs.push_back(agg);
+      ostringstream name;
+      name << "c" << select_list->columns++;
+      select_list->derived_table.columns().push_back(
+	  column(name.str(), agg->type));
+    } while (d6() > 4);
+
+    if (d6() > 4) {
+      auto agg = make_shared<funcall>(this, nullptr, false, true);
+      const string &n = agg->type->name;
+      /* map/list instantiations that look identical to the type system
+	 can differ at the SQL level, so comparing them draws errors */
+      if (concrete_result_type(agg->type) && n.rfind("map", 0) != 0
+	  && n.rfind("list", 0) != 0) {
+	having_agg = agg;
+	having_rhs = make_shared<const_expr>(this, agg->type);
+	static const char *ops[] = {"=", "<>", "<", "<=", ">", ">="};
+	having_op = ops[d6() - 1];
+      }
+    }
+  }
+
   set_quantifier = (d100() == 1) ? "distinct" : "";
 
   search = bool_expr::factory(this);
+
+  if (d6() == 6) {
+    auto &cols = select_list->derived_table.columns();
+    order_clause = "order by ";
+    size_t n = 1 + d6() % cols.size();
+    for (size_t i = 0; i < n; i++) {
+      order_clause += cols[d100() % cols.size()].name;
+      if (d6() < 3)
+	order_clause += (d6() < 4) ? " asc" : " desc";
+      if (d6() == 6)
+	order_clause += (d6() < 4) ? " nulls first" : " nulls last";
+      if (i+1 != n)
+	order_clause += ", ";
+    }
+  }
+
+  if (d6() == 6) {
+    limit_clause = "limit " + std::to_string(d100());
+    if (d6() > 4)
+      limit_clause += " offset " + std::to_string(d6());
+  }
 }
 
 long prepare_stmt::seq;
@@ -485,6 +676,104 @@ upsert_stmt::upsert_stmt(prod *p, struct scope *s, table *v)
   constraint = random_pick(victim->constraints);
 }
 
+set_op_query::set_op_query(prod *parent, struct scope *s)
+  : prod(parent), myscope(s)
+{
+  scope = &myscope;
+
+  operands.push_back(make_shared<query_spec>(this, s));
+
+  vector<sqltype *> templ;
+  for (auto &c : operands[0]->select_list->derived_table.columns()) {
+    /* pseudo types cannot be cast to, and map/list instantiations that
+       look identical to the type system can differ at the SQL level,
+       producing "cannot be matched" errors */
+    const string &n = c.type->name;
+    if (n.rfind("any", 0) == 0 || n.rfind("map", 0) == 0
+        || n.rfind("list", 0) == 0 || n == "record" || n == "unknown"
+        || n == "cstring" || n == "internal" || n == "void")
+      fail("set operation over unsupported column type");
+    templ.push_back(c.type);
+  }
+
+  do {
+    static const char *ops[] = {"union", "union all", "intersect",
+                                "intersect all", "except", "except all"};
+    setops.push_back(ops[d6() - 1]);
+    operands.push_back(make_shared<query_spec>(this, s, false, &templ));
+  } while (d6() == 6);
+}
+
+void set_op_query::out(std::ostream &out)
+{
+  out << "(" << *operands[0] << ")";
+  for (size_t i = 1; i < operands.size(); i++) {
+    indent(out);
+    out << setops[i-1] << " (" << *operands[i] << ")";
+  }
+}
+
+wmr_query::wmr_query(prod *parent, struct scope *s)
+  : prod(parent), myscope(s)
+{
+  scope = &myscope;
+  scope->tables = s->tables;
+  recursion_limit = 10 + d100();
+
+  /* concrete types whose names are valid in a column declaration list */
+  static const char *type_pool[] = {"int2", "int4", "int8", "bool", "text",
+                                    "numeric", "float8", "timestamp",
+                                    "jsonb"};
+
+  int nbindings = 1 + (d6() > 4 ? 1 : 0);
+  for (int i = 0; i < nbindings; i++) {
+    auto rel = make_shared<relation>();
+    vector<sqltype *> types;
+    int ncols = 1 + d6() / 2;
+    for (int j = 0; j < ncols; j++) {
+      const char *name = type_pool[d9() - 1];
+      sqltype *t = scope->schema->types_by_name[name];
+      if (!t)
+	fail("binding column type not in schema");
+      types.push_back(t);
+      rel->cols.push_back(column("c" + std::to_string(j), t));
+    }
+    auto arel = make_shared<aliased_relation>(scope->stmt_uid("m"), &*rel);
+    bindings.push_back(arel);
+    binding_rels.push_back(rel);
+    binding_types.push_back(types);
+    /* visible to all binding queries, enabling (mutual) recursion */
+    scope->tables.push_back(&*arel);
+  }
+
+  for (int i = 0; i < nbindings; i++)
+    binding_queries.push_back(
+	make_shared<query_spec>(this, scope, false, &binding_types[i]));
+
+  query = make_shared<query_spec>(this, scope);
+}
+
+void wmr_query::out(std::ostream &out)
+{
+  out << "WITH MUTUALLY RECURSIVE (RETURN AT RECURSION LIMIT "
+      << recursion_limit << ")";
+  for (size_t i = 0; i < bindings.size(); i++) {
+    indent(out);
+    out << bindings[i]->ident() << " (";
+    auto &cols = bindings[i]->columns();
+    for (size_t j = 0; j < cols.size(); j++) {
+      out << cols[j].name << " " << cols[j].type->name;
+      if (j+1 != cols.size())
+	out << ", ";
+    }
+    out << ") AS (" << *binding_queries[i] << ")";
+    if (i+1 != bindings.size())
+      out << ",";
+  }
+  indent(out);
+  out << *query;
+}
+
 shared_ptr<prod> statement_factory(struct scope *s, long max_joins, struct prod *parent)
 {
   try {
@@ -504,8 +793,13 @@ shared_ptr<prod> statement_factory(struct scope *s, long max_joins, struct prod 
     //  return make_shared<upsert_stmt>(parent, s);
     else if (d42() < 3)
       return make_shared<update_returning>(parent, s);
-    else if (d6() > 4)
-      return make_shared<select_for_update>(parent, s);
+    else if (d42() < 4)
+      return make_shared<wmr_query>(parent, s);
+    else if (d42() < 5)
+      return make_shared<set_op_query>(parent, s);
+    // Syntax: ERROR:  Expected end of statement, found FOR
+    //else if (d6() > 4)
+    //  return make_shared<select_for_update>(parent, s);
     else if (d6() > 5)
       return make_shared<common_table_expression>(parent, s);
     return make_shared<query_spec>(parent, s);
@@ -520,8 +814,13 @@ shared_ptr<prod> explain_factory(struct scope *s, long max_joins)
     std::shared_ptr<prod> p;
     g_joins = max_joins;
     s->new_stmt();
-    if (d6() > 5)
+    int roll = d9();
+    if (roll == 1)
       p = make_shared<common_table_expression>((struct prod *)0, s);
+    else if (roll == 2)
+      p = make_shared<set_op_query>((struct prod *)0, s);
+    else if (roll == 3)
+      p = make_shared<wmr_query>((struct prod *)0, s);
     else
       p = make_shared<query_spec>((struct prod *)0, s);
     return make_shared<explain_stmt>((struct prod *)0, p);

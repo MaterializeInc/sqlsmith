@@ -20,7 +20,9 @@ struct schema {
   sqltype *arraytype;
 
   std::vector<sqltype *> types;
-  
+  /// Lookup of types by name, filled in generate_indexes().
+  std::map<std::string, sqltype *> types_by_name;
+
   std::vector<table> tables;
   std::vector<op> operators;
   std::vector<routine> routines;
