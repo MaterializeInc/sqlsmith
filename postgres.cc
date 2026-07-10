@@ -414,6 +414,13 @@ schema_pqxx::schema_pqxx(std::string &conninfo, bool no_catalog, bool dump_state
       "AND mz_functions.name <> 'date_bin_hopping' " // the date_bin_hopping function is not supported
       "AND mz_functions.name <> 'generate_series' " // out of memory on large data sets
       "AND mz_functions.name <> 'generate_series_unoptimized' " // out of memory on large data sets
+      // string builders whose length argument the generator cannot bound:
+      // repeat(mz_version(), mz_version_num()) builds a ~70MB string per
+      // row, which OOMs the replica when joins multiply the rows and the
+      // result becomes a grouping key
+      "AND mz_functions.name <> 'repeat' "
+      "AND mz_functions.name <> 'lpad' "
+      "AND mz_functions.name <> 'rpad' "
       "AND NOT mz_functions.name like '%recv' " // https://github.com/MaterializeInc/database-issues/issues/5211
       "AND mz_functions.name <> 'pg_cancel_backend' " // pg_cancel_backend in this position not yet supported
       "AND (mz_functions.name <> 'sum' OR mz_functions.return_type_id <> (select id from mz_types where name = 'interval'))" // sum(interval) not yet supported, see https://github.com/MaterializeInc/database-issues/issues/5285
